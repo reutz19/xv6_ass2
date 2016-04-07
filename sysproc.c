@@ -89,3 +89,13 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int
+sys_sigset(void)
+{
+  sig_handler new_handler;
+
+  if(argptr(0, (char**)&new_handler, sizeof(sig_handler)) < 0)
+    return -1;
+  return (int) sigset(new_handler);
+}

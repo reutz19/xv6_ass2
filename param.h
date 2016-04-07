@@ -11,3 +11,4 @@
 #define LOGSIZE      (MAXOPBLOCKS*3)  // max data sectors in on-disk log
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
 
+#define DEFSIG_HENDLER  (void*)-1  // the default signal handler

@@ -50,6 +50,8 @@ struct context {
 };
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+//decleration of a signal handler function
+typedef void (*sig_handler)(int pid, int value); 
 
 // Per-process state
 struct proc {
@@ -66,6 +68,7 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  sig_handler sighandler;      // signal handler function
 };
 
 // Process memory is laid out contiguously, low addresses first:

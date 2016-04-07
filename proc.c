@@ -171,7 +171,9 @@ fork(void)
   np->cwd = idup(proc->cwd);
 
   safestrcpy(np->name, proc->name, sizeof(proc->name));
- 
+  np->sighandler = proc->sighandler; 
+  //copy signal handler
+
   pid = np->pid;
 
   // lock to force the compiler to emit the np->state write last.
@@ -506,4 +508,13 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+
+void* 
+sigset(void* new_handler)
+{
+  sig_handler oldhandler = proc->sighandler; 
+  proc->sighandler = new_handler;
+  return oldhandler;
 }
