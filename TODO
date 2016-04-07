@@ -1,0 +1,4 @@
+TODO before subbmition:
+1. delete file testcas.c
+2. remove noted code regarding cas check - proc.c->kill()
+3. remove _testcas from MAKEFILE

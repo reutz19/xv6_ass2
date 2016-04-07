@@ -30,11 +30,16 @@ int
 allocpid(void) 
 {
   int pid;
-  acquire(&ptable.lock);
-  pid = nextpid++;
-  release(&ptable.lock);
-  return pid;
+  //acquire(&ptable.lock);
+  //pid = nextpid++;
+  //release(&ptable.lock);
+
+  do{
+    pid = nextpid;
+  } while(!cas(&nextpid, pid, pid+1));
+  return pid + 1;
 }
+
 //PAGEBREAK: 32
 // Look in the process table for an UNUSED proc.
 // If found, change state to EMBRYO and initialize
@@ -46,16 +51,17 @@ allocproc(void)
   struct proc *p;
   char *sp;
 
-  acquire(&ptable.lock);
+  //acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == UNUSED)
+    //if(p->state == UNUSED)
+    if(cas(&p->state, UNUSED, EMBRYO))
       goto found;
-  release(&ptable.lock);
+  //release(&ptable.lock);
   return 0;
 
 found:
-  p->state = EMBRYO;  
-  release(&ptable.lock);
+  //p->state = EMBRYO;  
+  //release(&ptable.lock);
 
   p->pid = allocpid();
 
@@ -450,11 +456,18 @@ kill(int pid)
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
         p->state = RUNNABLE;
+      
       release(&ptable.lock);
       return 0;
     }
+
+      //int pid_test = p->pid;
+      //cas(&pid_test, pid_test, 1);
+      //cprintf("res = %d,    pid = %d", res, pid_test);
+  
+    release(&ptable.lock);
   }
-  release(&ptable.lock);
+
   return -1;
 }
 
