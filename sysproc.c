@@ -99,3 +99,15 @@ sys_sigset(void)
     return -1;
   return (int) sigset(new_handler);
 }
+
+int
+sys_sigsend(void)
+{
+  int dest_pid;
+  int value;
+
+  if(argint(0, &dest_pid) < 0 || argint(0, &value) < 0)
+    return -1;
+
+  return sigsend(dest_pid, value);
+}

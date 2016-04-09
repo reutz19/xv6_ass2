@@ -72,6 +72,14 @@ found:
   }
   sp = p->kstack + KSTACKSIZE;
   
+
+  //initialize cstack
+  struct cstackframe *csf;
+  for(csf = p->pending_signals.frames; csf < &p->pending_signals.frames[MAX_CSTACK_FRAMES]; csf++) {
+    csf->used = 0;
+  }
+  p->pending_signals.head = 0;
+
   // Leave room for trap frame.
   sp -= sizeof *p->tf;
   p->tf = (struct trapframe*)sp;
@@ -510,7 +518,6 @@ procdump(void)
   }
 }
 
-
 void* 
 sigset(void* new_handler)
 {
@@ -518,3 +525,66 @@ sigset(void* new_handler)
   proc->sighandler = new_handler;
   return oldhandler;
 }
+
+int
+sigsend(int dest_pid, int value)
+{
+  struct proc *p;
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if (p->pid == dest_pid) {
+      //found dest_pid process
+  
+      if (push(&p->pending_signals, proc->pid, dest_pid, value)) //if push succeed return 0 otherwise return -1
+        return 0;
+      else
+        return -1;
+    }
+  }
+  return -1;  
+}
+
+// -------------- cstack implementation ------------
+int 
+push(struct cstack *cstack, int sender_pid, int recepient_pid, int value)
+{
+  struct cstackframe *csf;
+  for(csf = cstack->frames; csf < &cstack->frames[MAX_CSTACK_FRAMES]; csf++) {
+    if(cas(&csf->used, 0, 1)) 
+      goto found;
+  }
+
+  //stack is full
+  return 0;
+
+  //found an unused signal
+  found:
+  // copy values
+  csf->sender_pid = sender_pid;
+  csf->recepient_pid = recepient_pid;
+  csf->value = value;
+  
+  do {
+    csf->next = cstack->head;
+  } while (!cas((int*)&(cstack->head), (int)csf->next, (int)&csf));
+
+  return 1;
+}
+
+struct cstackframe*
+pop(struct cstack *cstack)
+{
+  struct cstackframe *csf;
+  struct cstackframe *next;
+  
+  do {
+    csf = cstack->head;
+    if (!csf)
+      return 0;
+  } while (!cas((int*)&(cstack->head), (int)csf, (int)&next));
+  
+  //csf->used = 0;
+  return csf;
+}
+
+

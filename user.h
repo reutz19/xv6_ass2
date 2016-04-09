@@ -24,6 +24,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 void* sigset(void*);
+int sigsend(int, int);
 
 // ulib.c
 int stat(char*, struct stat*);

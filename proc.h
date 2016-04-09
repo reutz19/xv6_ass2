@@ -1,5 +1,6 @@
 // Segments in proc->gdt.
-#define NSEGS     7
+#define NSEGS             7
+#define MAX_CSTACK_FRAMES 10
 
 // Per-CPU state
 struct cpu {
@@ -29,6 +30,34 @@ extern int ncpu;
 // in thread libraries such as Linux pthreads.
 extern struct cpu *cpu asm("%gs:0");       // &cpus[cpunum()]
 extern struct proc *proc asm("%gs:4");     // cpus[cpunum()].proc
+
+
+// ----------- cstack frame ----------
+
+//defines an element of the concurrent struct
+struct cstackframe {
+  int sender_pid;
+  int recepient_pid;
+  int value;
+  int used;
+  struct cstackframe *next;
+};
+
+//defines a concurrent stack
+struct cstack {
+  struct cstackframe frames[MAX_CSTACK_FRAMES];
+  struct cstackframe *head;
+};
+
+//adds a new frame to the cstack which is initialized with values
+//sender_pid, recepient_pid and value, then returns 1 on success and 0
+//if the stack is full
+int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value);
+
+//remove and return an element from the head of the given cstack
+//if the stack is empty then return zero
+struct cstackframe *pop(struct cstack *cstack);
+
 
 //PAGEBREAK: 17
 // Saved registers for kernel context switches.
@@ -68,6 +97,8 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  struct cstack pending_signals;// pending signal stack
+  struct cstackframe curr_sig; // the signale that is currently handled
   sig_handler sighandler;      // signal handler function
 };
 
