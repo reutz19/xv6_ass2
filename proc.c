@@ -37,6 +37,7 @@ allocpid(void)
   do{
     pid = nextpid;
   } while(!cas(&nextpid, pid, pid+1));
+  cprintf("alloc pid = %d", pid + 1);
   return pid + 1;
 }
 
@@ -458,15 +459,16 @@ int
 kill(int pid)
 {
   struct proc *p;
-
+cprintf("my input pid is %d go over %d procs\n", pid, NPROC );
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    
+    cprintf("my pid is %d\n", p->pid );
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
         p->state = RUNNABLE;
-      
       release(&ptable.lock);
       return 0;
     }
@@ -474,10 +476,10 @@ kill(int pid)
       //int pid_test = p->pid;
       //cas(&pid_test, pid_test, 1);
       //cprintf("res = %d,    pid = %d", res, pid_test);
-  
+//  cprintf("i'm in kill ! outside for loop, my pid is %d\n", p->pid );
     release(&ptable.lock);
   }
-
+  
   return -1;
 }
 
@@ -536,13 +538,31 @@ sigsend(int dest_pid, int value)
       //found dest_pid process
   
       if (push(&p->pending_signals, proc->pid, dest_pid, value)) //if push succeed return 0 otherwise return -1
+      { 
+        wakeup((void*)p->chan);
         return 0;
+      }
       else
         return -1;
     }
   }
   return -1;  
 }
+
+int
+sigpause(void)
+{
+  acquire(&ptable.lock);
+  //f(cas(&proc->state, RUNNING, SLEEPING)){
+  proc->state = SLEEPING;
+  proc->chan = (int)proc;
+  //while(!cas(proc->chan, 0, ()))
+  sched();
+  release(&ptable.lock);
+  return 0;
+  //}
+}
+
 
 // -------------- cstack implementation ------------
 int 

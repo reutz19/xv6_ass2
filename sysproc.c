@@ -111,3 +111,16 @@ sys_sigsend(void)
 
   return sigsend(dest_pid, value);
 }
+
+int
+sys_sigret(void)
+{
+  //todo: implement
+  return 0;
+}
+
+int
+sys_sigpause(void)
+{
+  return sigpause();
+}

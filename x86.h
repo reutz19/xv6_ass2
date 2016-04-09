@@ -157,7 +157,19 @@ cas(volatile int *addr, int expected, int newval)
         : "+m" (*addr), "=r" (result)
         : "a" (expected), "b" (newval)
         : "cc");
-
+  /*
+    int result = 1;
+    asm volatile(
+      "lock; cmpxchg %3, (%2) \n\t"
+      
+      "jz successs \n\t"
+      
+      "movl $0, %0\n\t"
+      "successs:\n\t"
+      : "=m"(result)
+      : "r" (expected), "r" (addr), "r"(newval)
+      : "memory");
+*/
     return result;
 }
 
