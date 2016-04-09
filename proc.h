@@ -97,9 +97,8 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-  struct cstack pending_signals;// pending signal stack
-  struct cstackframe curr_sig; // the signale that is currently handled
   sig_handler sighandler;      // signal handler function
+  struct cstack pending_signals;// pending signal stack
 };
 
 // Process memory is laid out contiguously, low addresses first:
