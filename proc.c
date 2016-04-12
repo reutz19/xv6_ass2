@@ -37,7 +37,7 @@ allocpid(void)
   do{
     pid = nextpid;
   } while(!cas(&nextpid, pid, pid+1));
-  cprintf("alloc pid = %d", pid + 1);
+  //cprintf("alloc pid = %d", pid + 1);
   return pid + 1;
 }
 
@@ -84,7 +84,7 @@ found:
   // Leave room for trap frame.
   sp -= sizeof *p->tf;
   p->tf = (struct trapframe*)sp;
-  
+
   // Set up new context to start executing at forkret,
   // which returns to trapret.
   sp -= 4;
@@ -552,13 +552,16 @@ sigsend(int dest_pid, int value)
 int
 sigpause(void)
 {
-  acquire(&ptable.lock);
-  //f(cas(&proc->state, RUNNING, SLEEPING)){
+  //acquire(&ptable.lock);
+  do {
+      proc->chan = (int)proc;
+  } while (!cas(&proc->chan, 0, 1));
+
   proc->state = SLEEPING;
-  proc->chan = (int)proc;
+  //proc->chan = (int)proc;
   //while(!cas(proc->chan, 0, ()))
   sched();
-  release(&ptable.lock);
+  //release(&ptable.lock);
   return 0;
   //}
 }
@@ -607,4 +610,21 @@ pop(struct cstack *cstack)
   return csf;
 }
 
+// 1. check for pendings_signal = pop()
+// 2. check if you're not handling a signal now ? seems like not needed
+// 3. check if you're a default signal_handler
+//   a. if default = return
+//   b. else - handle the signal
+// now handling a signal:
+//  
+void
+fix_tf(void)
+{
+  struct cstackframe *csf;
+  if(!(csf = pop(&proc->pending_signals)))
+    return; // this is enough?
+  if(proc->sighandler == DEFSIG_HENDLER)
+    return; // signal_handler is default
+  //else, we have a pending signal and a handler 
 
+}
