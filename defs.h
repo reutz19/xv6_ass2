@@ -120,7 +120,7 @@ void            wakeup(void*);
 void            yield(void);
 void* 			sigset(void* new_handler);
 int 			sigsend(int dest_pid, int value);
-//int 			sigret(void);
+int 			sigret(void);
 int 			sigpause(void);
 
 // swtch.S

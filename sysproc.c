@@ -114,9 +114,7 @@ sys_sigsend(void)
 int
 sys_sigret(void)
 {
-  *(proc->tf) = *(proc->old_tf);
-
-  return 0;
+  return sigret();
 }
 
 int

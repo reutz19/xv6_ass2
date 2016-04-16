@@ -552,21 +552,24 @@ sigsend(int dest_pid, int value)
   return -1;  
 }
 
+
+int
+sigret(void)
+{
+  *(proc->tf) = *(proc->old_tf);
+  return 0;
+}
+
 int
 sigpause(void)
 {
-  //acquire(&ptable.lock);
   do {
       proc->chan = (int)proc;
   } while (!cas(&proc->chan, 0, 1));
 
   proc->state = SLEEPING;
-  //proc->chan = (int)proc;
-  //while(!cas(proc->chan, 0, ()))
   sched();
-  //release(&ptable.lock);
   return 0;
-  //}
 }
 
 
@@ -613,13 +616,7 @@ pop(struct cstack *cstack)
   return csf;
 }
 
-// 1. check for pendings_signal = pop()
-// 2. check if you're not handling a signal now ? seems like not needed
-// 3. check if you're a default signal_handler
-//   a. if default = return
-//   b. else - handle the signal
-// now handling a signal:
-//  
+  
 void
 fix_tf(void)
 { if (proc){ 
@@ -645,6 +642,8 @@ fix_tf(void)
     goToStack: // lable#1
     asm volatile("movl $24, %eax; int $64");
     returnFromStack:; // lable#2
+    new_signal->used = 0;
+    goto done;
 
     handleStack:
     addr_space = &&goToStack - &&returnFromStack;
