@@ -100,6 +100,7 @@ struct proc {
   sig_handler sighandler;        // signal handler function
   struct cstack pending_signals; // pending signal stack
   struct trapframe *old_tf;      // Trap frame for backup syscall
+  int handling_signal;           // flag for handling a signal (zero is not handling)
 };
 
 // Process memory is laid out contiguously, low addresses first:

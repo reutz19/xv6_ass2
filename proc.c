@@ -81,6 +81,9 @@ found:
   }
   p->pending_signals.head = 0;
 
+  // available for handeling signal 
+  p->handling_signal = 0;
+
   // Leave room for trap frame.
   sp -= sizeof *p->tf;
   p->tf = (struct trapframe*)sp;
@@ -619,12 +622,48 @@ pop(struct cstack *cstack)
 //  
 void
 fix_tf(void)
-{
-  struct cstackframe *csf;
-  if(!(csf = pop(&proc->pending_signals)))
-    return; // this is enough?
-  if(proc->sighandler == DEFSIG_HENDLER)
-    return; // signal_handler is default
-  //else, we have a pending signal and a handler 
+{ if (proc){ 
+    // if proc already handling a signal then return
+    if (proc->handling_signal)
+      goto done;
 
+    struct cstackframe *new_signal;
+    // no pending signal in the stack  OR  signal_handler is default
+    if(!(new_signal = pop(&proc->pending_signals)) || proc->sighandler == DEFSIG_HENDLER)
+      goto done; 
+    //else, we have a pending signal and a handler: 
+
+    // back-up the old trap-frame for handeling user stack
+    *proc->old_tf = *proc->tf;
+    // up the flag for preventing proc to handle more than 1 signal
+    proc->handling_signal = 1;
+
+    int addr_space; 
+    // int esp_backup;
+
+    goto handleStack;
+    goToStack: // lable#1
+    asm volatile("movl $24, %eax; int $64");
+    returnFromStack:; // lable#2
+
+    handleStack:
+    addr_space = &&goToStack - &&returnFromStack;
+    //esp_backup = proc->tf->esp - 4;
+
+    proc->tf->esp -= addr_space;
+    memmove((void *)proc->tf->esp, &&goToStack, addr_space);
+
+    proc->tf->esp -= 4;
+    *(uint *)proc->tf->esp = new_signal->value;
+
+    proc->tf->esp -= 4;
+    *(uint *)proc->tf->esp = new_signal->sender_pid;
+
+    proc->tf->esp -= 4;
+    *(uint *)proc->tf->esp = proc->tf->esp + 12;
+
+    proc->tf->eip = (int)proc->sighandler;    
+
+    done:;
+  }
 }

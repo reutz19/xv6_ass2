@@ -23,11 +23,10 @@ alltraps:
   call trap
   addl $4, %esp
 
-  # fix_trap should happen here i think
-
   # Return falls through to trapret...
 .globl trapret
 trapret:
+  call fix_tf
   popal
   popl %gs
   popl %fs

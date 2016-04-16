@@ -108,14 +108,14 @@ sys_sigsend(void)
 
   if(argint(0, &dest_pid) < 0 || argint(0, &value) < 0)
     return -1;
-
   return sigsend(dest_pid, value);
 }
 
 int
 sys_sigret(void)
 {
-  //todo: implement
+  *(proc->tf) = *(proc->old_tf);
+
   return 0;
 }
 
