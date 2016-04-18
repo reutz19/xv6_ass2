@@ -30,14 +30,11 @@ int
 allocpid(void) 
 {
   int pid;
-  //acquire(&ptable.lock);
-  //pid = nextpid++;
-  //release(&ptable.lock);
-
+  pushcli();
   do{
     pid = nextpid;
   } while(!cas(&nextpid, pid, pid+1));
-  //cprintf("alloc pid = %d", pid + 1);
+  popcli();
   return pid + 1;
 }
 
@@ -51,13 +48,14 @@ allocproc(void)
 {
   struct proc *p;
   char *sp;
-
+  //pushcli();
   //acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     //if(p->state == UNUSED)
     if(cas(&p->state, UNUSED, EMBRYO))
       goto found;
   //release(&ptable.lock);
+  //popcli();
   return 0;
 
 found:
@@ -73,7 +71,6 @@ found:
   }
   sp = p->kstack + KSTACKSIZE;
   
-
   //initialize cstack
   struct cstackframe *csf;
   for(csf = p->pending_signals.frames; csf < &p->pending_signals.frames[MAX_CSTACK_FRAMES]; csf++) {
@@ -188,9 +185,11 @@ fork(void)
   pid = np->pid;
 
   // lock to force the compiler to emit the np->state write last.
-  acquire(&ptable.lock);
+  //acquire(&ptable.lock);
+  pushcli();
   np->state = RUNNABLE;
-  release(&ptable.lock);
+  popcli();
+  //release(&ptable.lock);
   
   return pid;
 }
@@ -220,24 +219,25 @@ exit(void)
   end_op();
   proc->cwd = 0;
 
-  acquire(&ptable.lock);
+  //acquire(&ptable.lock);
+  pushcli();
+  //proc->state = ZOMBIE;
+  if(cas(&proc->state, RUNNING, nZOMBIE))
+  {
+    // Parent might be sleeping in wait().
+    wakeup1(proc->parent);
 
-  proc->state = ZOMBIE;
-
-  // Parent might be sleeping in wait().
-  wakeup1(proc->parent);
-
-  // Pass abandoned children to init.
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->parent == proc){
-      p->parent = initproc;
-      if(p->state == ZOMBIE)
-        wakeup1(initproc);
+    // Pass abandoned children to init.
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent == proc){
+        p->parent = initproc;
+        if(p->state == ZOMBIE)
+          wakeup1(initproc);
+      }
     }
-  }
 
   // Jump into the scheduler, never to return.
-  
+  }
   sched();
   panic("zombie exit");
 }
@@ -350,8 +350,8 @@ sched(void)
 {
   int intena;
 
-  if(!holding(&ptable.lock))
-    panic("sched ptable.lock");
+  //if(!holding(&ptable.lock))
+  //  panic("sched ptable.lock");
   if(cpu->ncli != 1)
     panic("sched locks");
   if(proc->state == RUNNING)
@@ -361,6 +361,7 @@ sched(void)
   intena = cpu->intena;
   swtch(&proc->context, cpu->scheduler);
   cpu->intena = intena;
+  popcli();
 }
 
 // Give up the CPU for one scheduling round.
@@ -438,20 +439,40 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == (int)chan){
-      // Tidy up.
-      p->chan = 0;
-      p->state = RUNNABLE;
+  { 
+    if(p->chan == (int)chan)
+    {
+      if(cas(&p->state, SLEEPING, RUNNABLE))
+        p->chan = 0;
+      else if(p->state == nSLEEPING) //check case when we got here with nSLEEPING !!!!
+        //!!!!!!!!!!!!!!!!!!!!!!
+      {
+        do {
+          p->chan = 0;  
+        } while(!cas(&p->state, SLEEPING, RUNNABLE));
+      }
     }
+  }
+/*
+    if((p->state == SLEEPING || p->state == nSLEEPING) && p->chan == (int)chan){
+      // Tidy up.
+      do {
+        p->chan = 0;  
+      } while(!cas(&p->state, SLEEPING, RUNNABLE));
+      //p->state = RUNNABLE;
+    }
+    */
 }
 
 // Wake up all processes sleeping on chan.
 void
 wakeup(void *chan)
 {
-  acquire(&ptable.lock);
+  //acquire(&ptable.lock);
+  pushcli();
   wakeup1(chan);
-  release(&ptable.lock);
+  popcli();
+  //release(&ptable.lock);
 }
 
 // Kill the process with the given pid.
@@ -498,7 +519,11 @@ procdump(void)
   [SLEEPING]  "sleep ",
   [RUNNABLE]  "runble",
   [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
+  [ZOMBIE]    "zombie",
+  [nSLEEPING]  "nsleep ",
+  [nRUNNABLE]  "nrunble",
+  [nRUNNING]   "nrun   ",
+  [nZOMBIE]    "nzombie"
   };
   int i;
   struct proc *p;

@@ -80,7 +80,7 @@ struct context {
   uint eip;
 };
 
-enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE, nSLEEPING, nRUNNABLE, nRUNNING, nZOMBIE };
 //decleration of a signal handler function
 typedef void (*sig_handler)(int pid, int value); 
 
