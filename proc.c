@@ -607,8 +607,9 @@ push(struct cstack *cstack, int sender_pid, int recepient_pid, int value)
   
   do {
     csf->next = cstack->head;
-  } while (!cas((int*)&(cstack->head), (int)csf->next, (int)&csf));
+  } while (!cas((int*)&(cstack->head), (int)csf->next, (int)csf));
 
+  cprintf("csf = %p, head = %p\n", csf, cstack->head);
   cprintf("push - value %d\n", value);
   cprintf("push - sender_pid %d\n", sender_pid);
 
@@ -626,8 +627,9 @@ pop(struct cstack *cstack)
     if (!csf)
       return 0;
 
-  } while (!cas((int*)&(cstack->head), (int)csf, (int)&next));
-  
+    next = csf->next;
+  } while (!cas((int*)&(cstack->head), (int)csf, (int)next));
+
   //csf->used = 0;
   return csf;
 }
@@ -675,11 +677,16 @@ fix_tf(void)
   }
 
   new_signal->used = 0;
-  addr_space = 8;//&&returnFromStack - &&goToStack;
+  addr_space = &&returnFromStack - &&goToStack;
+  addr_space = 8;
+  //TODO!!!! handle!
 
-  cprintf("\n&&goToStack=0x%x &&returnFromStack=0x%x\n", 
-    &&goToStack, &&returnFromStack);
+  //cprintf("\n&&goToStack=0x%x &&returnFromStack=0x%x\n", 
+   // &&goToStack, &&returnFromStack);
   //esp_backup = proc->tf->esp - 4;
+
+  //cprintf("\n addr_space=%x, value=%x, spid=%x:\n", 
+  //  addr_space, new_signal->value, new_signal->sender_pid);
 
   proc->tf->esp -= addr_space;
   memmove((void *)proc->tf->esp, &&goToStack, addr_space);
@@ -693,6 +700,11 @@ fix_tf(void)
   proc->tf->esp -= 4;
   *(uint *)proc->tf->esp = proc->tf->esp + 12;     //address for return 
 
+  /*int j;
+  cprintf("\n esp:\n");
+  for (j=0; j < 10; j++){
+    cprintf("%p: %x\n", &((uint *)proc->tf->esp)[j], ((uint *)proc->tf->esp)[j]);
+  }*/
   proc->tf->eip = (int)proc->sighandler;    
 
   done:;
