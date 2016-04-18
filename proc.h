@@ -58,6 +58,8 @@ int push(struct cstack *cstack, int sender_pid, int recepient_pid, int value);
 //if the stack is empty then return zero
 struct cstackframe *pop(struct cstack *cstack);
 
+//check if there are pending signals
+int is_empty(struct cstack *cstack);
 
 //PAGEBREAK: 17
 // Saved registers for kernel context switches.
@@ -99,7 +101,7 @@ struct proc {
   char name[16];                 // Process name (debugging)
   sig_handler sighandler;        // signal handler function
   struct cstack pending_signals; // pending signal stack
-  struct trapframe *old_tf;      // Trap frame for backup syscall
+  struct trapframe old_tf;       // Trap frame for backup syscall
   int handling_signal;           // flag for handling a signal (zero is not handling)
 };
 

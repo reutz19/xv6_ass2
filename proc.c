@@ -183,9 +183,8 @@ fork(void)
   np->cwd = idup(proc->cwd);
 
   safestrcpy(np->name, proc->name, sizeof(proc->name));
-  np->sighandler = proc->sighandler; 
   //copy signal handler
-
+  np->sighandler = proc->sighandler; 
   pid = np->pid;
 
   // lock to force the compiler to emit the np->state write last.
@@ -534,19 +533,22 @@ sigset(void* new_handler)
 int
 sigsend(int dest_pid, int value)
 {
-  struct proc *p;
+  struct proc *p; 
+
+  cprintf("sigsend - value %d\n", value);
+  cprintf("sigsend - dest_pid %d\n", dest_pid);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if (p->pid == dest_pid) {
       //found dest_pid process
   
-      if (push(&p->pending_signals, proc->pid, dest_pid, value)) //if push succeed return 0 otherwise return -1
-      { 
+      //if push succeed wakeup current proc and return 0
+      if (push(&p->pending_signals, proc->pid, dest_pid, value)) 
+      {
         wakeup((void*)p->chan);
         return 0;
       }
-      else
-        return -1;
+      break;
     }
   }
   return -1;  
@@ -556,19 +558,29 @@ sigsend(int dest_pid, int value)
 int
 sigret(void)
 {
-  *(proc->tf) = *(proc->old_tf);
+  // restore origin user stack
+  *(proc->tf) = proc->old_tf; 
+  //*(proc->tf) = *(proc->old_tf);  //TODO: change to line above
+
+  //finish handling signal so we could handle the next one
+  proc->handling_signal = 0;
   return 0;
 }
 
 int
 sigpause(void)
 {
-  do {
+  if (is_empty(&(proc->pending_signals))) {
+    acquire(&ptable.lock);
+    //do {
       proc->chan = (int)proc;
-  } while (!cas(&proc->chan, 0, 1));
+    //} while (!cas(&proc->chan, 0, 1));
 
-  proc->state = SLEEPING;
-  sched();
+    proc->state = SLEEPING;
+    sched();
+    release(&ptable.lock);
+  }
+
   return 0;
 }
 
@@ -597,6 +609,9 @@ push(struct cstack *cstack, int sender_pid, int recepient_pid, int value)
     csf->next = cstack->head;
   } while (!cas((int*)&(cstack->head), (int)csf->next, (int)&csf));
 
+  cprintf("push - value %d\n", value);
+  cprintf("push - sender_pid %d\n", sender_pid);
+
   return 1;
 }
 
@@ -610,59 +625,75 @@ pop(struct cstack *cstack)
     csf = cstack->head;
     if (!csf)
       return 0;
+
   } while (!cas((int*)&(cstack->head), (int)csf, (int)&next));
   
   //csf->used = 0;
   return csf;
 }
 
-  
+int
+is_empty(struct cstack *cstack)
+{
+  return cstack->head == 0 ? 1 : 0;
+}
+
 void
 fix_tf(void)
-{ if (proc){ 
-    // if proc already handling a signal then return
-    if (proc->handling_signal)
-      goto done;
+{ 
+  if (proc == 0)  //no proccess
+    return;
 
-    struct cstackframe *new_signal;
-    // no pending signal in the stack  OR  signal_handler is default
-    if(!(new_signal = pop(&proc->pending_signals)) || proc->sighandler == DEFSIG_HENDLER)
-      goto done; 
-    //else, we have a pending signal and a handler: 
+  if (((proc->tf->cs) & 3) != DPL_USER) //has no user privilge
+    return;
 
-    // back-up the old trap-frame for handeling user stack
-    *proc->old_tf = *proc->tf;
-    // up the flag for preventing proc to handle more than 1 signal
-    proc->handling_signal = 1;
-
-    int addr_space; 
-    // int esp_backup;
-
-    goto handleStack;
-    goToStack: // lable#1
-    asm volatile("movl $24, %eax; int $64");
-    returnFromStack:; // lable#2
-    new_signal->used = 0;
+  // if proc already handling a signal then return
+  if (proc->handling_signal == 1)
     goto done;
 
-    handleStack:
-    addr_space = &&goToStack - &&returnFromStack;
-    //esp_backup = proc->tf->esp - 4;
+  struct cstackframe *new_signal;
+  // no pending signal in the stack  OR  signal_handler is default
+  if(!(new_signal = pop(&proc->pending_signals)) || proc->sighandler == DEFSIG_HENDLER)
+    goto done; 
+  //else, we have a pending signal and a handler: 
 
-    proc->tf->esp -= addr_space;
-    memmove((void *)proc->tf->esp, &&goToStack, addr_space);
+  // back-up the old trap-frame for handeling user stack
+  proc->old_tf = *(proc->tf);
+  //*(proc->old_tf) = *(proc->tf);//TODO: change to line above 
 
-    proc->tf->esp -= 4;
-    *(uint *)proc->tf->esp = new_signal->value;
+  // up the flag for preventing proc to handle more than 1 signal
+  proc->handling_signal = 1;
 
-    proc->tf->esp -= 4;
-    *(uint *)proc->tf->esp = new_signal->sender_pid;
+  int addr_space; 
+  // int esp_backup;
 
-    proc->tf->esp -= 4;
-    *(uint *)proc->tf->esp = proc->tf->esp + 12;
-
-    proc->tf->eip = (int)proc->sighandler;    
-
-    done:;
+  int stam = 0;
+  if (1 == stam) {
+    goToStack: // lable#1
+    asm volatile("movl $24, %eax; int $64"); //movl $SYS_sigret, %eax; int $T_SYSCALL; 
+    returnFromStack:; // lable#2
   }
+
+  new_signal->used = 0;
+  addr_space = 8;//&&returnFromStack - &&goToStack;
+
+  cprintf("\n&&goToStack=0x%x &&returnFromStack=0x%x\n", 
+    &&goToStack, &&returnFromStack);
+  //esp_backup = proc->tf->esp - 4;
+
+  proc->tf->esp -= addr_space;
+  memmove((void *)proc->tf->esp, &&goToStack, addr_space);
+
+  proc->tf->esp -= 4;
+  *(uint *)proc->tf->esp = new_signal->value;      //param 2
+
+  proc->tf->esp -= 4;
+  *(uint *)proc->tf->esp = new_signal->sender_pid; //param 1
+
+  proc->tf->esp -= 4;
+  *(uint *)proc->tf->esp = proc->tf->esp + 12;     //address for return 
+
+  proc->tf->eip = (int)proc->sighandler;    
+
+  done:;
 }
