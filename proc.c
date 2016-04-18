@@ -535,8 +535,8 @@ sigsend(int dest_pid, int value)
 {
   struct proc *p; 
 
-  cprintf("sigsend - value %d\n", value);
-  cprintf("sigsend - dest_pid %d\n", dest_pid);
+  //cprintf("sigsend - value %d\n", value);
+  //cprintf("sigsend - dest_pid %d\n", dest_pid);
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
     if (p->pid == dest_pid) {
@@ -577,6 +577,7 @@ sigpause(void)
     //} while (!cas(&proc->chan, 0, 1));
 
     proc->state = SLEEPING;
+    //cprintf("IN sigpause sys-call before sched(), my pid = %d\n", proc->pid);
     sched();
     release(&ptable.lock);
   }
@@ -609,9 +610,9 @@ push(struct cstack *cstack, int sender_pid, int recepient_pid, int value)
     csf->next = cstack->head;
   } while (!cas((int*)&(cstack->head), (int)csf->next, (int)csf));
 
-  cprintf("csf = %p, head = %p\n", csf, cstack->head);
-  cprintf("push - value %d\n", value);
-  cprintf("push - sender_pid %d\n", sender_pid);
+  //cprintf("csf = %p, head = %p\n", csf, cstack->head);
+  //cprintf("push - value %d\n", value);
+  //cprintf("push - sender_pid %d\n", sender_pid);
 
   return 1;
 }

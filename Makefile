@@ -173,7 +173,7 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_testcas\
-	_primesrv\
+	_primsrv\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
