@@ -704,7 +704,7 @@ fix_tf(void)
 
   new_signal->used = 0;
   addr_space = &&returnFromStack - &&goToStack;
-  addr_space = 8;
+  //addr_space = 8;
   //TODO!!!! handle!
 
   //cprintf("\n&&goToStack=0x%x &&returnFromStack=0x%x\n", 

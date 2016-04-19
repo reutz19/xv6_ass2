@@ -1,7 +1,9 @@
 #include "types.h"  
 #include "user.h"
+#include "stat.h"
 
-#define MAX_INPUT 10
+#define MAX_INPUT 100
+#define STDOUT 2
 
 typedef struct worker {
   int pid;          // process id
@@ -13,6 +15,7 @@ static int workers_number;
 static worker_s *workers;
 
 //check if a number is prime
+/*
 int 
 is_prime(int num)
 {
@@ -21,7 +24,7 @@ is_prime(int num)
     else  //odd
     {       
       int i;
-      for (i = 3; i <= num; i+=2){
+      for (i = 3; i*i <= num; i+=2){
           if (num % i == 0)
               return 0;
       }
@@ -44,23 +47,41 @@ next_pr(int num)
     else              // even 
         return next_pr(num-1);  //become odd and return next_pr
 }
+*/
+
+int is_prime(int number) {
+    int i;
+    for (i = 2; (i*i) < number; i++)
+    {
+        if (number % i == 0 && i != number)
+            return 0;
+    }
+    return 1;
+}
+
+int next_pr(int n){
+  int i = 0;
+  int found = 0;
+    for(i=n+1; !found ;i++){
+        if(is_prime(i)){
+            return i;
+        }
+    }
+    return 0;
+}
 
 void 
 handle_worker_sig(int main_pid, int value)
 {
   if (value == 0) {
-    //printf(1, "worker %d exit\n", getpid());
     exit();
   }
-
   // get next prime
   int c = next_pr(value); 
-  //printf(1, "process %d in next_pr return ans %d for %d, main_pid is %d\n",getpid(), c, value, main_pid);
-
   //return result to main proccess
   sigsend(main_pid, c); 
   //pause until the next number
-  sigpause();
+  //sigpause();
 }
   
 void
@@ -69,7 +90,7 @@ handle_main_sig(int worker_pid, int value)
   int i;
   for (i = 0; i < workers_number; i++) {
     if (workers[i].pid == worker_pid){
-      printf(1, "worker %d returned %d as a result for %d", worker_pid, value, workers[i].input_x);
+      printf(STDOUT, "worker %d returned %d as a result for %d", worker_pid, value, workers[i].input_x);
       workers[i].working = 0;
       break;
     }
@@ -80,55 +101,60 @@ int
 main(int argc, char *argv[])
 {
   int i, pid, input_x;
+  int toRun = 1;
   char buf[MAX_INPUT];
 
-  // test arguments
+  // validate arguments
   if (argc != 2) {
-  	printf(1, "Unvaild parameter for primsrv test\n");
-  	exit();
+    printf(STDOUT, "Unvaild parameter for primsrv test\n");
+    exit();
   }
 
   // allocate workers array
   workers_number = atoi(argv[1]);
   workers = (worker_s*) malloc(workers_number * sizeof(worker_s));
   
-  sigset((void *)handle_main_sig);
-  printf(1, "workers pids:\n");
+  // configure the main process with workers-handler inorder to pass it to son by fork()
+  sigset((void *)handle_worker_sig);
+
+  printf(STDOUT, "workers pids:\n");
   for(i = 0; i < workers_number; i++) {
-  	
+    
     if ((pid = fork()) == 0) {  // son
-      sigset((void *)handle_worker_sig);
-      sigpause();
+      while(1) sigpause();
     }
     else if (pid > 0) {         // father
       //init son worker_s 
-      printf(1, "%d\n", pid);  
+      printf(STDOUT, "%d\n", pid);  
       workers[i].pid = pid;
       workers[i].input_x = -1;
       workers[i].working = 0;
     }
     else {                      // fork failed
-      printf(1, "fork() failed!\n"); 
+      printf(STDOUT, "fork() failed!\n"); 
       exit();
     }
   }
 
-  for(;;)
+  // configure the main process - correct handler
+  sigset((void *)handle_main_sig);
+
+  while(toRun)
   {
-    //buf[MAX_INPUT];
-  	printf(1, "Please enter a number: ");
-  	gets(buf, MAX_INPUT);
-    //printf(1, "bufer is %s\n",buf);
-  	if (buf[0] == 0){
+    printf(STDOUT, "Please enter a number: ");
+
+    read(1, buf, MAX_INPUT);
+    
+    if (buf[0] == '\n'){
       //handle main signals by calling a system call
-      sigset((void *)handle_main_sig);
+      //sigset((void *)handle_main_sig);
       continue;
     }
 
     input_x = atoi(buf);
-  	if(input_x != 0)
+
+    if(input_x != 0)
     {
-      // find an idle process = p - TODO
       // send input_x to process p using sigsend sys-call 
       for (i = 0; i < workers_number; i++)
       {
@@ -137,34 +163,41 @@ main(int argc, char *argv[])
           workers[i].working = 1;
           workers[i].input_x = input_x;
           sigsend(workers[i].pid, input_x);  
-          //printf(1, "Send signal val %d to worker %d: \n", input_x, workers[i].pid);
           break;
         }
       }
-      //printf(1, "end for loop\n");
 
       // no idle workers to handle signal
       if (i == workers_number){
-        printf(1, "no idle workers\n");
+        printf(STDOUT, "no idle workers\n");
       }
     }
 
     else // input = 0, exiting program
-  	{
-      //printf(1, "ELSE\n");
-  	  for (i = 0; i < workers_number; i++)
-  	  {
+    {
+      for (i = 0; i < workers_number; i++)
+      {
         sigsend(workers[i].pid, 0);
-        printf(1, "worker %d exit\n", workers[i].pid);
-  	  }
+        printf(STDOUT, "worker %d exit\n", workers[i].pid);
+      }
+      toRun = 0;
+      break;
+      
+      /*
       //wait for all workers to exit
       while (wait() > 0);
       free(workers);
-  	  printf(1, "primsrv exit\n");
-  	  exit();
-  	}
+      printf(STDOUT, "primsrv exit\n");
+      exit();
+      */
+    }
 
   }
-
+  
+  for(i = 0; i < workers_number; i++)
+    wait();
+  free(workers);
+  printf(STDOUT, "primsrv exit\n");
   exit();
 }
+

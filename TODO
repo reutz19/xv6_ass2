@@ -1,4 +1,8 @@
 TODO before subbmition:
 1. delete file testcas.c
-2. remove noted code regarding cas check - proc.c->kill()
-3. remove _testcas from MAKEFILE
+2. remove _testcas from MAKEFILE
+
+TODO#2:
+1. search for all acquire & release spinlock and delete them.
+2. in fork() - add pushcli/popcli ?
+3. add to proc.c - clean the new fields that relate to signals in wait() func.
