@@ -226,8 +226,10 @@ exit(void)
   //proc->state = ZOMBIE;
   pushcli();
 
-  if(!cas(&(proc->state), RUNNING, nZOMBIE))
+  if(!cas(&(proc->state), RUNNING, nZOMBIE)){
+    popcli();
     return; // if cas() failed then exit() failed
+  }
 
   // Parent might be sleeping in wait().
   wakeup1(proc->parent);
@@ -259,7 +261,7 @@ wait(void)
   for(;;){
     proc->chan = (int)proc;
     //proc->state = SLEEPING;    
-    cas(&(p->state), RUNNING, nSLEEPING);
+    cas(&(proc->state), RUNNING, nSLEEPING);
 
     // Scan through table looking for zombie children.
     havekids = 0;
@@ -310,9 +312,9 @@ wait(void)
 void 
 freeproc(struct proc *p)
 {
-  //if (!p || p->state != ZOMBIE)
-  if (!p || p->state != nZOMBIE)
+  if (!p || p->state != ZOMBIE){
     panic("freeproc not zombie");
+  }
   kfree(p->kstack);
   p->kstack = 0;
   freevm(p->pgdir);
@@ -326,13 +328,12 @@ freeproc(struct proc *p)
 // Scheduler never returns.  It loops, doing:
 //  - choose a process to run
 //  - swtch to start running that process
-//  - eventually that process transfers control
-//      via swtch back to the scheduler.
+// - eventually that process transfers control
+// via swtch back to the scheduler.
 void
 scheduler(void)
 {
   struct proc *p;
-
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -353,18 +354,18 @@ scheduler(void)
       //p->state = RUNNING;
       swtch(&cpu->scheduler, proc->context);
       
+      switchkvm();
+
       cas(&p->state, nRUNNABLE, RUNNABLE);
       cas(&p->state, nSLEEPING, SLEEPING);
-
-      switchkvm();
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
-      //if (p->state == ZOMBIE)
-      if (p->state == nZOMBIE)
+      cas(&p->state, nZOMBIE, ZOMBIE);
+      if (p->state == ZOMBIE){
         freeproc(p);
-        cas(&p->state, nZOMBIE, ZOMBIE);
+      }
     }
     //release(&ptable.lock);
     popcli();
@@ -383,8 +384,9 @@ sched(void)
   //  panic("sched ptable.lock");
   if(cpu->ncli != 1)
     panic("sched locks");
-  if(proc->state == RUNNING)
+  if(proc->state == RUNNING){
     panic("sched running");
+  }
   if(readeflags()&FL_IF)
     panic("sched interruptible");
   intena = cpu->intena;
