@@ -15,7 +15,6 @@ static int workers_number;
 static worker_s *workers;
 
 //check if a number is prime
-/*
 int 
 is_prime(int num)
 {
@@ -47,28 +46,6 @@ next_pr(int num)
     else              // even 
         return next_pr(num-1);  //become odd and return next_pr
 }
-*/
-
-int is_prime(int number) {
-    int i;
-    for (i = 2; (i*i) < number; i++)
-    {
-        if (number % i == 0 && i != number)
-            return 0;
-    }
-    return 1;
-}
-
-int next_pr(int n){
-  int i = 0;
-  int found = 0;
-    for(i=n+1; !found ;i++){
-        if(is_prime(i)){
-            return i;
-        }
-    }
-    return 0;
-}
 
 void 
 handle_worker_sig(int main_pid, int value)
@@ -76,12 +53,12 @@ handle_worker_sig(int main_pid, int value)
   if (value == 0) {
     exit();
   }
+
   // get next prime
   int c = next_pr(value); 
+
   //return result to main proccess
-  sigsend(main_pid, c); 
-  //pause until the next number
-  //sigpause();
+  while (sigsend(main_pid, c) != 0);
 }
   
 void
@@ -90,7 +67,7 @@ handle_main_sig(int worker_pid, int value)
   int i;
   for (i = 0; i < workers_number; i++) {
     if (workers[i].pid == worker_pid){
-      printf(STDOUT, "worker %d returned %d as a result for %d", worker_pid, value, workers[i].input_x);
+      printf(STDOUT, "worker %d returned %d as a result for %d\n", worker_pid, value, workers[i].input_x);
       workers[i].working = 0;
       break;
     }
@@ -100,7 +77,7 @@ handle_main_sig(int worker_pid, int value)
 int
 main(int argc, char *argv[])
 {
-  int i, pid, input_x;
+  int i, pid, input_x, bob;
   int toRun = 1;
   char buf[MAX_INPUT];
 
@@ -116,7 +93,6 @@ main(int argc, char *argv[])
   
   // configure the main process with workers-handler inorder to pass it to son by fork()
   sigset((void *)handle_worker_sig);
-
   printf(STDOUT, "workers pids:\n");
   for(i = 0; i < workers_number; i++) {
     
@@ -145,9 +121,7 @@ main(int argc, char *argv[])
 
     read(1, buf, MAX_INPUT);
     
-    if (buf[0] == '\n'){
-      //handle main signals by calling a system call
-      //sigset((void *)handle_main_sig);
+    if (buf[0] == '\n'){ //handle main signals
       continue;
     }
 
@@ -155,25 +129,29 @@ main(int argc, char *argv[])
 
     if(input_x != 0)
     {
-      // send input_x to process p using sigsend sys-call 
-      for (i = 0; i < workers_number; i++)
+      for (bob = 0; bob < input_x; bob++) 
       {
-        if (workers[i].working == 0) // available
+        // send input_x to process p using sigsend sys-call 
+        for (i = 0; i < workers_number; i++)
         {
-          workers[i].working = 1;
-          workers[i].input_x = input_x;
-          sigsend(workers[i].pid, input_x);  
-          break;
+          if (workers[i].working == 0) // available
+          {
+            workers[i].working = 1;
+            workers[i].input_x = bob + 1;//input_x;
+            if (sigsend(workers[i].pid, bob + 1))//input_x);  
+              printf(1, "********** failed to sigsend to worker %d\n", workers[i].pid);
+            break;
+          }
         }
-      }
 
-      // no idle workers to handle signal
-      if (i == workers_number){
-        printf(STDOUT, "no idle workers\n");
+        // no idle workers to handle signal
+        if (i == workers_number){
+          printf(STDOUT, "no idle workers\n");
+        }
       }
     }
 
-    else // input = 0, exiting program
+    else // input_x == 0, exiting program
     {
       for (i = 0; i < workers_number; i++)
       {
@@ -181,17 +159,7 @@ main(int argc, char *argv[])
         printf(STDOUT, "worker %d exit\n", workers[i].pid);
       }
       toRun = 0;
-      break;
-      
-      /*
-      //wait for all workers to exit
-      while (wait() > 0);
-      free(workers);
-      printf(STDOUT, "primsrv exit\n");
-      exit();
-      */
     }
-
   }
   
   for(i = 0; i < workers_number; i++)

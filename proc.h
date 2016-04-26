@@ -80,7 +80,7 @@ struct context {
   uint eip;
 };
 
-enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE, nSLEEPING, nRUNNABLE, nZOMBIE };
+enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE, nSLEEPING, nRUNNABLE, nRUNNING, nZOMBIE };
 //decleration of a signal handler function
 typedef void (*sig_handler)(int pid, int value); 
 
@@ -102,6 +102,7 @@ struct proc {
   sig_handler sighandler;        // signal handler function
   struct cstack pending_signals; // pending signal stack
   struct trapframe old_tf;       // Trap frame for backup syscall
+  struct cstackframe *curr_signal;// save the current signal so we could set curr_signal->used = 0 (release it) at sigret 
   int handling_signal;           // flag for handling a signal (zero is not handling)
 };
 
