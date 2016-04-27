@@ -77,7 +77,8 @@ handle_main_sig(int worker_pid, int value)
 int
 main(int argc, char *argv[])
 {
-  int i, pid, input_x, bob;
+  //int i, pid, input_x, bob;
+  int i, pid, input_x;
   int toRun = 1;
   char buf[MAX_INPUT];
 
@@ -129,16 +130,17 @@ main(int argc, char *argv[])
 
     if(input_x != 0)
     {
-      for (bob = 0; bob < input_x; bob++) 
-      {
+      //for (bob = 0; bob < input_x; bob++) 
+      //{
         // send input_x to process p using sigsend sys-call 
         for (i = 0; i < workers_number; i++)
         {
           if (workers[i].working == 0) // available
           {
             workers[i].working = 1;
-            workers[i].input_x = bob + 1;//input_x;
-            if (sigsend(workers[i].pid, bob + 1))//input_x);  
+            //workers[i].input_x = bob + 1;//input_x;
+            //if (sigsend(workers[i].pid, bob + 1))//input_x);
+            if (sigsend(workers[i].pid, input_x))//input_x);    
               printf(1, "********** failed to sigsend to worker %d\n", workers[i].pid);
             break;
           }
@@ -148,7 +150,7 @@ main(int argc, char *argv[])
         if (i == workers_number){
           printf(STDOUT, "no idle workers\n");
         }
-      }
+      //}
     }
 
     else // input_x == 0, exiting program
