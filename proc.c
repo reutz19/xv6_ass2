@@ -638,25 +638,25 @@ sigpause(void)
   */
   if(proc)
   {
-    if(is_empty(&(proc->pending_signals)))
+    if(!is_empty(&(proc->pending_signals)))
       return 0;
-    int toRun = 1;
-    while(toRun)
-    {
+    //int toRun = 1;
+    //while(toRun)
+    //{
       proc->chan = (int)proc;    
       cas(&proc->state, RUNNING, nSLEEPING);
       // again, check if there are pending signals
-      if(is_empty(&(proc->pending_signals)))
+      if(!is_empty(&(proc->pending_signals)))
       {
         cas(&proc->state, SLEEPING, RUNNING);
         cas(&proc->state, nSLEEPING, RUNNING);
-        toRun = 0;
+        //toRun = 0;
         return 0;
       }
       pushcli();
       sched();
       popcli();
-    }
+    //}
   }
   return 0;
 }

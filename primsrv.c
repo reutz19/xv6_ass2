@@ -140,6 +140,7 @@ main(int argc, char *argv[])
             workers[i].working = 1;
             //workers[i].input_x = bob + 1;//input_x;
             //if (sigsend(workers[i].pid, bob + 1))//input_x);
+            workers[i].input_x = input_x;
             if (sigsend(workers[i].pid, input_x))//input_x);    
               printf(1, "********** failed to sigsend to worker %d\n", workers[i].pid);
             break;
