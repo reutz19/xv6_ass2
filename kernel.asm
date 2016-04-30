@@ -8128,9 +8128,7 @@ allocpid(void)
 80104332:	55                   	push   %ebp
 80104333:	89 e5                	mov    %esp,%ebp
 80104335:	83 ec 1c             	sub    $0x1c,%esp
-  //acquire(&ptable.lock);
-  //pid = nextpid++;
-  //release(&ptable.lock);
+  int pid;
 
   do{
     pid = nextpid;
@@ -8146,7 +8144,6 @@ allocpid(void)
 80104358:	e8 9c ff ff ff       	call   801042f9 <cas>
 8010435d:	85 c0                	test   %eax,%eax
 8010435f:	74 d7                	je     80104338 <allocpid+0x6>
-  //cprintf("alloc pid = %d", pid + 1);
   return pid;
 80104361:	8b 45 fc             	mov    -0x4(%ebp),%eax
 }
@@ -8166,12 +8163,9 @@ allocproc(void)
   struct proc *p;
   char *sp;
 
-  //acquire(&ptable.lock);
-  //pushcli();
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
 8010436c:	c7 45 f4 c0 39 11 80 	movl   $0x801139c0,-0xc(%ebp)
 80104373:	eb 4c                	jmp    801043c1 <allocproc+0x5b>
-    //if(p->state == UNUSED)
     if(cas(&(p->state), UNUSED, EMBRYO))
 80104375:	8b 45 f4             	mov    -0xc(%ebp),%eax
 80104378:	83 c0 0c             	add    $0xc,%eax
@@ -8185,10 +8179,10 @@ allocproc(void)
 80104395:	74 23                	je     801043ba <allocproc+0x54>
       goto found;
 80104397:	90                   	nop
+
+  return 0;
+
 found:
-  //p->state = EMBRYO;  
-  //release(&ptable.lock);
-  //popcli();
 
   p->pid = allocpid();
 80104398:	e8 95 ff ff ff       	call   80104332 <allocpid>
@@ -8205,20 +8199,18 @@ found:
 801043b4:	85 c0                	test   %eax,%eax
 801043b6:	75 30                	jne    801043e8 <allocproc+0x82>
 801043b8:	eb 1a                	jmp    801043d4 <allocproc+0x6e>
+allocproc(void)
+{
   struct proc *p;
   char *sp;
 
-  //acquire(&ptable.lock);
-  //pushcli();
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
 801043ba:	81 45 f4 a0 01 00 00 	addl   $0x1a0,-0xc(%ebp)
 801043c1:	81 7d f4 c0 a1 11 80 	cmpl   $0x8011a1c0,-0xc(%ebp)
 801043c8:	72 ab                	jb     80104375 <allocproc+0xf>
-    //if(p->state == UNUSED)
     if(cas(&(p->state), UNUSED, EMBRYO))
       goto found;
-  //release(&ptable.lock);
-  //popcli();
+
   return 0;
 801043ca:	b8 00 00 00 00       	mov    $0x0,%eax
 801043cf:	e9 b9 00 00 00       	jmp    8010448d <allocproc+0x127>
@@ -8642,9 +8634,6 @@ fork(void)
 801047ae:	89 45 dc             	mov    %eax,-0x24(%ebp)
 
   // lock to force the compiler to emit the np->state write last.
-  //acquire(&ptable.lock);
-  //np->state = RUNNABLE;
-  //release(&ptable.lock);
   pushcli();
 801047b1:	e8 86 0e 00 00       	call   8010563c <pushcli>
   //change process state, if didn't succeed then return -1 for fork() failed
@@ -8666,6 +8655,7 @@ fork(void)
 801047dd:	b8 ff ff ff ff       	mov    $0xffffffff,%eax
 801047e2:	eb 08                	jmp    801047ec <fork+0x198>
   }
+
   popcli();
 801047e4:	e8 97 0e 00 00       	call   80105680 <popcli>
   return pid;
@@ -8751,8 +8741,6 @@ exit(void)
 80104884:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 8010488a:	c7 40 68 00 00 00 00 	movl   $0x0,0x68(%eax)
 
-  //acquire(&ptable.lock);
-  //proc->state = ZOMBIE;
   pushcli();
 80104891:	e8 a6 0d 00 00       	call   8010563c <pushcli>
   if(!cas(&(proc->state), RUNNING, nZOMBIE)){
@@ -8840,7 +8828,6 @@ wait(void)
   struct proc *p;
   int havekids, pid;
 
-  //acquire(&ptable.lock);
   pushcli();
 8010493f:	e8 f8 0c 00 00       	call   8010563c <pushcli>
 
@@ -8849,7 +8836,6 @@ wait(void)
 80104944:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 8010494a:	65 8b 15 04 00 00 00 	mov    %gs:0x4,%edx
 80104951:	89 50 20             	mov    %edx,0x20(%eax)
-    //proc->state = SLEEPING;
     // start transition to SLEEPING (finish in scheduler)
     cas(&(proc->state),RUNNING, nSLEEPING);    
 80104954:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
@@ -8896,7 +8882,6 @@ wait(void)
 801049bf:	8b 45 f4             	mov    -0xc(%ebp),%eax
 801049c2:	8b 40 10             	mov    0x10(%eax),%eax
 801049c5:	89 45 ec             	mov    %eax,-0x14(%ebp)
-        //p->state = UNUSED;
         cas(&(p->state), ZOMBIE, UNUSED);
 801049c8:	8b 45 f4             	mov    -0xc(%ebp),%eax
 801049cb:	83 c0 0c             	add    $0xc,%eax
@@ -8919,8 +8904,7 @@ wait(void)
         proc->chan = 0;
 80104a01:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 80104a07:	c7 40 20 00 00 00 00 	movl   $0x0,0x20(%eax)
-        //proc->state = RUNNING;
-        //release(&ptable.lock);
+
         // if a child zombie so we need to return it's pid, so we're back to RUNNING
         cas(&(proc->state), nSLEEPING, RUNNING);
 80104a0e:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
@@ -8946,7 +8930,7 @@ wait(void)
         return pid;
 80104a55:	8b 45 ec             	mov    -0x14(%ebp),%eax
 80104a58:	e9 8c 00 00 00       	jmp    80104ae9 <wait+0x1b0>
-    //proc->state = SLEEPING;
+    proc->chan = (int)proc;
     // start transition to SLEEPING (finish in scheduler)
     cas(&(proc->state),RUNNING, nSLEEPING);    
     // Scan through table looking for zombie children.
@@ -8970,8 +8954,6 @@ wait(void)
       proc->chan = 0;
 80104a84:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 80104a8a:	c7 40 20 00 00 00 00 	movl   $0x0,0x20(%eax)
-      //proc->state = RUNNING;      
-      //release(&ptable.lock);
       cas(&(proc->state), nSLEEPING, RUNNING);
 80104a91:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 80104a97:	83 c0 0c             	add    $0xc,%eax
@@ -9065,7 +9047,6 @@ scheduler(void)
 80104b50:	e8 9e f7 ff ff       	call   801042f3 <sti>
 
     // Loop over process table looking for process to run.
-    //acquire(&ptable.lock);
     pushcli();
 80104b55:	e8 e2 0a 00 00       	call   8010563c <pushcli>
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
@@ -9096,7 +9077,6 @@ scheduler(void)
 80104b96:	8b 45 f4             	mov    -0xc(%ebp),%eax
 80104b99:	89 04 24             	mov    %eax,(%esp)
 80104b9c:	e8 3f 38 00 00       	call   801083e0 <switchuvm>
-      //p->state = RUNNING;
       swtch(&cpu->scheduler, proc->context);
 80104ba1:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 80104ba7:	8b 40 1c             	mov    0x1c(%eax),%eax
@@ -9105,6 +9085,7 @@ scheduler(void)
 80104bb4:	89 44 24 04          	mov    %eax,0x4(%esp)
 80104bb8:	89 14 24             	mov    %edx,(%esp)
 80104bbb:	e8 0d 0e 00 00       	call   801059cd <swtch>
+
       cas(&(p->state), nSLEEPING, SLEEPING);
 80104bc0:	8b 45 f4             	mov    -0xc(%ebp),%eax
 80104bc3:	83 c0 0c             	add    $0xc,%eax
@@ -9123,6 +9104,7 @@ scheduler(void)
 80104bf3:	00 
 80104bf4:	89 04 24             	mov    %eax,(%esp)
 80104bf7:	e8 fd f6 ff ff       	call   801042f9 <cas>
+
       switchkvm();
 80104bfc:	e8 c2 37 00 00       	call   801083c3 <switchkvm>
 
@@ -9150,20 +9132,20 @@ scheduler(void)
 80104c37:	00 
 80104c38:	89 04 24             	mov    %eax,(%esp)
 80104c3b:	e8 b9 f6 ff ff       	call   801042f9 <cas>
+    // Enable interrupts on this processor.
     sti();
 
     // Loop over process table looking for process to run.
-    //acquire(&ptable.lock);
     pushcli();
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
 80104c40:	81 45 f4 a0 01 00 00 	addl   $0x1a0,-0xc(%ebp)
 80104c47:	81 7d f4 c0 a1 11 80 	cmpl   $0x8011a1c0,-0xc(%ebp)
 80104c4e:	0f 82 12 ff ff ff    	jb     80104b66 <scheduler+0x1c>
+      {
         freeproc(p);
         cas(&(p->state), nZOMBIE, ZOMBIE);
       }
     }
-    //release(&ptable.lock);
     popcli();
 80104c54:	e8 27 0a 00 00       	call   80105680 <popcli>
   }
@@ -9181,8 +9163,6 @@ sched(void)
 80104c61:	83 ec 28             	sub    $0x28,%esp
   int intena;
 
-  //if(!holding(&ptable.lock))
-  //  panic("sched ptable.lock");
   if(cpu->ncli != 1)
 80104c64:	65 a1 00 00 00 00    	mov    %gs:0x0,%eax
 80104c6a:	8b 80 ac 00 00 00    	mov    0xac(%eax),%eax
@@ -9236,8 +9216,6 @@ yield(void)
 80104cf4:	55                   	push   %ebp
 80104cf5:	89 e5                	mov    %esp,%ebp
 80104cf7:	83 ec 18             	sub    $0x18,%esp
-  //acquire(&ptable.lock);  //DOC: yieldlock
-  //proc->state = RUNNABLE;
   pushcli();
 80104cfa:	e8 3d 09 00 00       	call   8010563c <pushcli>
   cas(&(proc->state), RUNNING, nRUNNABLE);
@@ -9253,7 +9231,6 @@ yield(void)
 80104d20:	e8 39 ff ff ff       	call   80104c5e <sched>
   popcli();
 80104d25:	e8 56 09 00 00       	call   80105680 <popcli>
-  //release(&ptable.lock);
 }
 80104d2a:	c9                   	leave  
 80104d2b:	c3                   	ret    
@@ -9270,7 +9247,6 @@ forkret(void)
 80104d2f:	83 ec 08             	sub    $0x8,%esp
   static int first = 1;
   // Still holding ptable.lock from scheduler.
-  //release(&ptable.lock);
   popcli();
 80104d32:	e8 49 09 00 00       	call   80105680 <popcli>
 
@@ -9317,16 +9293,15 @@ sleep(void *chan, struct spinlock *lk)
     panic("sleep without lk");
 80104d73:	c7 04 24 b6 8e 10 80 	movl   $0x80108eb6,(%esp)
 80104d7a:	e8 bb b7 ff ff       	call   8010053a <panic>
-  //  acquire(&ptable.lock);  //DOC: sleeplock1
-  //  release(lk);
-  //}
+  // guaranteed that we won't miss any wakeup
+  // (wakeup runs with ptable.lock locked),
+  // so it's okay to release lk.
 
   // Go to sleep.
   proc->chan = (int)chan;
 80104d7f:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 80104d85:	8b 55 08             	mov    0x8(%ebp),%edx
 80104d88:	89 50 20             	mov    %edx,0x20(%eax)
-  //proc->state = SLEEPING;
   cas(&(proc->state), RUNNING, nSLEEPING);
 80104d8b:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 80104d91:	83 c0 0c             	add    $0xc,%eax
@@ -9339,6 +9314,7 @@ sleep(void *chan, struct spinlock *lk)
 
   pushcli();
 80104dac:	e8 8b 08 00 00       	call   8010563c <pushcli>
+
   release(lk);
 80104db1:	8b 45 0c             	mov    0xc(%ebp),%eax
 80104db4:	89 04 24             	mov    %eax,(%esp)
@@ -9349,13 +9325,10 @@ sleep(void *chan, struct spinlock *lk)
 80104dc1:	8b 45 0c             	mov    0xc(%ebp),%eax
 80104dc4:	89 04 24             	mov    %eax,(%esp)
 80104dc7:	e8 1c 07 00 00       	call   801054e8 <acquire>
+
   popcli();
 80104dcc:	e8 af 08 00 00       	call   80105680 <popcli>
-  // Reacquire original lock.
-  //if(lk != &ptable.lock){  //DOC: sleeplock2
-  //  release(&ptable.lock);
-  //  acquire(lk);
-  //}
+
 }
 80104dd1:	c9                   	leave  
 80104dd2:	c3                   	ret    
@@ -9439,7 +9412,6 @@ wakeup(void *chan)
 80104e59:	55                   	push   %ebp
 80104e5a:	89 e5                	mov    %esp,%ebp
 80104e5c:	83 ec 18             	sub    $0x18,%esp
-  //acquire(&ptable.lock);
   pushcli();
 80104e5f:	e8 d8 07 00 00       	call   8010563c <pushcli>
   wakeup1(chan);
@@ -9448,7 +9420,6 @@ wakeup(void *chan)
 80104e6a:	e8 64 ff ff ff       	call   80104dd3 <wakeup1>
   popcli();
 80104e6f:	e8 0c 08 00 00       	call   80105680 <popcli>
-  //release(&ptable.lock);
 }
 80104e74:	c9                   	leave  
 80104e75:	c3                   	ret    
@@ -9464,9 +9435,10 @@ kill(int pid)
 80104e77:	89 e5                	mov    %esp,%ebp
 80104e79:	83 ec 28             	sub    $0x28,%esp
   struct proc *p;
-  //acquire(&ptable.lock);
+
   pushcli();
 80104e7c:	e8 bb 07 00 00       	call   8010563c <pushcli>
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
 80104e81:	c7 45 f4 c0 39 11 80 	movl   $0x801139c0,-0xc(%ebp)
 80104e88:	eb 52                	jmp    80104edc <kill+0x66>
@@ -9481,8 +9453,6 @@ kill(int pid)
 80104e95:	8b 45 f4             	mov    -0xc(%ebp),%eax
 80104e98:	c7 40 24 01 00 00 00 	movl   $0x1,0x24(%eax)
       // Wake process from sleep if necessary.
-      //if(p->state == SLEEPING)
-        //p->state = RUNNABLE;
       //busy wait until scheduler finish transition to SLEEPING
       while(p->state == nSLEEPING);
 80104e9f:	90                   	nop
@@ -9499,17 +9469,17 @@ kill(int pid)
 80104ec0:	00 
 80104ec1:	89 04 24             	mov    %eax,(%esp)
 80104ec4:	e8 30 f4 ff ff       	call   801042f9 <cas>
-      //release(&ptable.lock);
+
       popcli();
 80104ec9:	e8 b2 07 00 00       	call   80105680 <popcli>
       return 0;
 80104ece:	b8 00 00 00 00       	mov    $0x0,%eax
 80104ed3:	eb 1a                	jmp    80104eef <kill+0x79>
-kill(int pid)
 {
   struct proc *p;
-  //acquire(&ptable.lock);
+
   pushcli();
+
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
 80104ed5:	81 45 f4 a0 01 00 00 	addl   $0x1a0,-0xc(%ebp)
 80104edc:	81 7d f4 c0 a1 11 80 	cmpl   $0x8011a1c0,-0xc(%ebp)
@@ -9518,7 +9488,7 @@ kill(int pid)
       return 0;
     }
   }
-  //release(&ptable.lock);
+
   popcli();
 80104ee5:	e8 96 07 00 00       	call   80105680 <popcli>
   return -1;
@@ -9586,6 +9556,7 @@ procdump(void)
 80104f68:	89 44 24 04          	mov    %eax,0x4(%esp)
 80104f6c:	c7 04 24 cb 8e 10 80 	movl   $0x80108ecb,(%esp)
 80104f73:	e8 28 b4 ff ff       	call   801003a0 <cprintf>
+
     //busy wait until scheduler finish transition to SLEEPING
     while(p->state == nSLEEPING);
 80104f78:	90                   	nop
@@ -9593,6 +9564,7 @@ procdump(void)
 80104f7c:	8b 40 0c             	mov    0xc(%eax),%eax
 80104f7f:	83 f8 06             	cmp    $0x6,%eax
 80104f82:	74 f5                	je     80104f79 <procdump+0x88>
+
     if(p->state == SLEEPING){
 80104f84:	8b 45 f0             	mov    -0x10(%ebp),%eax
 80104f87:	8b 40 0c             	mov    0xc(%eax),%eax
@@ -9616,9 +9588,9 @@ procdump(void)
 80104fba:	89 44 24 04          	mov    %eax,0x4(%esp)
 80104fbe:	c7 04 24 d4 8e 10 80 	movl   $0x80108ed4,(%esp)
 80104fc5:	e8 d6 b3 ff ff       	call   801003a0 <cprintf>
-    cprintf("%d %s %s", p->pid, state, p->name);
     //busy wait until scheduler finish transition to SLEEPING
     while(p->state == nSLEEPING);
+
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)
@@ -9796,11 +9768,6 @@ sigpause(void)
 801050fb:	55                   	push   %ebp
 801050fc:	89 e5                	mov    %esp,%ebp
 801050fe:	83 ec 18             	sub    $0x18,%esp
-      release(&ptable.lock);
-    }
-  }
-  return 0;
-  */
   if(proc)
 80105101:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 80105107:	85 c0                	test   %eax,%eax
@@ -9816,9 +9783,7 @@ sigpause(void)
       return 0;
 80105124:	b8 00 00 00 00       	mov    $0x0,%eax
 80105129:	e9 a3 00 00 00       	jmp    801051d1 <sigpause+0xd6>
-    //int toRun = 1;
-    //while(toRun)
-    //{
+
       proc->chan = (int)proc;    
 8010512e:	65 a1 04 00 00 00    	mov    %gs:0x4,%eax
 80105134:	65 8b 15 04 00 00 00 	mov    %gs:0x4,%edx
@@ -9859,7 +9824,7 @@ sigpause(void)
 801051ad:	00 
 801051ae:	89 04 24             	mov    %eax,(%esp)
 801051b1:	e8 43 f1 ff ff       	call   801042f9 <cas>
-        //toRun = 0;
+
         return 0;
 801051b6:	b8 00 00 00 00       	mov    $0x0,%eax
 801051bb:	eb 14                	jmp    801051d1 <sigpause+0xd6>
@@ -9870,7 +9835,6 @@ sigpause(void)
 801051c2:	e8 97 fa ff ff       	call   80104c5e <sched>
       popcli();
 801051c7:	e8 b4 04 00 00       	call   80105680 <popcli>
-    //}
   }
   return 0;
 801051cc:	b8 00 00 00 00       	mov    $0x0,%eax
