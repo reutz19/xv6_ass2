@@ -220,16 +220,18 @@ exit(void)
   if(!cas(&(proc->state), RUNNING, nZOMBIE)){
     return; // if cas() failed then exit() failed
   }
+  
+  //cas(&(proc->state), RUNNING, ZOMBIE);
 
   // Parent might be sleeping in wait().
-  wakeup1(proc->parent);
+  //wakeup1(proc->parent);
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == proc)
     {
       p->parent = initproc;
-      if(p->state == ZOMBIE || p->state == nZOMBIE)
-        wakeup1(initproc);
+      //if(p->state == ZOMBIE || p->state == nZOMBIE)
+      //wakeup1(initproc);
     }
   }
   // Jump into the scheduler, never to return.
@@ -270,6 +272,16 @@ wait(void)
         p->parent = 0;
         p->name[0] = 0;
 
+        // clean it's signals attributes
+        p->pending_signals.head = 0;
+        struct cstackframe *csf;
+        for(csf = p->pending_signals.frames; csf < &p->pending_signals.frames[MAX_CSTACK_FRAMES]; csf++){
+             csf->used = 0;
+        }
+        p->sighandler = (sig_handler)(-1);
+        p->handling_signal = 0;
+        p->curr_signal->used = 0;
+        
         proc->chan = 0;
 
         // if a child zombie so we need to return it's pid, so we're back to RUNNING
@@ -284,8 +296,10 @@ wait(void)
     // No point waiting if we don't have any children.
     if(!havekids || proc->killed){
       proc->chan = 0;
+
       cas(&(proc->state), nSLEEPING, RUNNING);
       cas(&(proc->state), SLEEPING, RUNNING);
+
       popcli();
       return -1;
     }
@@ -298,7 +312,8 @@ wait(void)
 void 
 freeproc(struct proc *p)
 {
-  if (!p || p->state != nZOMBIE)
+  if (!p || p->state != nnZOMBIE)
+  //if (!p || p->state != ZOMBIE)
     panic("freeproc not zombie");
   kfree(p->kstack);
   p->kstack = 0;
@@ -340,18 +355,30 @@ scheduler(void)
 
       cas(&(p->state), nSLEEPING, SLEEPING);
       cas(&(p->state), nRUNNABLE, RUNNABLE);
+      //cas(&(p->state), nZOMBIE, ZOMBIE);
 
       switchkvm();
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
-      
+         
       if (p->state == nZOMBIE)
       {
+        cas(&(p->state), nZOMBIE, nnZOMBIE);
         freeproc(p);
-        cas(&(p->state), nZOMBIE, ZOMBIE);
+        cas(&(p->state), nnZOMBIE, ZOMBIE);
+        wakeup1(p->parent);
       }
+      
+      /*
+      cas(&(p->state), nZOMBIE, ZOMBIE);
+      if (p->state == ZOMBIE)
+      {
+        freeproc(p);
+        wakeup1(p->parent);
+      }
+      */
     }
     popcli();
   }
